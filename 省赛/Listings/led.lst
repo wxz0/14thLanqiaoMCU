@@ -1,0 +1,46 @@
+C51 COMPILER V9.54   LED                                                                   02/08/2026 14:27:45 PAGE 1   
+
+
+C51 COMPILER V9.54, COMPILATION OF MODULE LED
+OBJECT MODULE PLACED IN .\Objects\led.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE hardware\led.c OPTIMIZE(8,SPEED) BROWSE INCDIR(.\hardware) DEBUG OBJECTE
+                    -XTEND PRINT(.\Listings\led.lst) TABS(2) OBJECT(.\Objects\led.obj)
+
+line level    source
+
+   1          #include "led.h"
+   2          #include "74hc138.h"
+   3          
+   4          
+   5          void led_proc(uint8_t state[])
+   6          {
+   7   1       static uint8_t state_old;
+   8   1       uint8_t temp = 0;
+   9   1       uint8_t i = 0;
+  10   1       for(i = 0;i<8;i++)
+  11   1       {
+  12   2         temp = temp | (state[i] << i);
+  13   2       }
+  14   1      
+  15   1       if(temp!=state_old)
+  16   1       {
+  17   2         P0 = ~temp;
+  18   2         hc138_select(4);
+  19   2         hc138_select(0);
+  20   2         temp = state_old;
+  21   2       }
+  22   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =     59    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =      1       3
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

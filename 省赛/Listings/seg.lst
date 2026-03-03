@@ -1,0 +1,47 @@
+C51 COMPILER V9.54   SEG                                                                   02/08/2026 14:27:45 PAGE 1   
+
+
+C51 COMPILER V9.54, COMPILATION OF MODULE SEG
+OBJECT MODULE PLACED IN .\Objects\seg.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE hardware\seg.c OPTIMIZE(8,SPEED) BROWSE INCDIR(.\hardware) DEBUG OBJECTE
+                    -XTEND PRINT(.\Listings\seg.lst) TABS(2) OBJECT(.\Objects\seg.obj)
+
+line level    source
+
+   1          #include "seg.h"
+   2          #include "74hc138.h"
+   3          uint8_t arr[] = {0xc0,0xf9,0xa4,0xb0,
+   4                           0x99,0x92,0x82,0xf8,
+   5                           0x80,0x90,0xff,0xbf,
+   6                           0xc6
+   7                              };
+   8          
+   9          void seg_proc(uint8_t n,uint8_t num,uint8_t point)
+  10          {
+  11   1        P0 = 0xff;
+  12   1        hc138_select(7);
+  13   1        hc138_select(0);
+  14   1        
+  15   1        P0 = 0x01 << n;
+  16   1        hc138_select(6);
+  17   1        hc138_select(0);
+  18   1        
+  19   1        P0 = arr[num];
+  20   1        if(point)P0 = P0 & ~0x80;
+  21   1        hc138_select(7);
+  22   1        hc138_select(0);
+  23   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =     69    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     13       3
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
