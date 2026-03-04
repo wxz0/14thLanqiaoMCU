@@ -6,6 +6,7 @@
 #include "iic.h"
 #include "onewire.h"
 #include "uart.h"
+
 pdata uint8_t seg_show[] = {10,10,10,10,10,10,10,10};
 pdata uint8_t seg_point[] = {0,0,0,0,0,0,0,0};
 idata uint8_t seg_index = 0;
@@ -19,23 +20,31 @@ idata uint8_t led_state[] ={0,0,0,0,0,0,0,0};
 
 idata uint8_t time[] = {13,3,5};
 idata uint8_t time_cap[] = {0,0,0};
+idata uint8_t cap_count = 0;
+idata uint16_t temp_aver = 0;
+idata uint16_t humi_aver = 0;
 
 idata uint16_t light = 0;
-idata bit light_state_pre = 0;//0Ϊ����1Ϊ��
+idata bit light_state_pre = 0;
 idata bit light_state_cur = 0;
 idata uint16_t light_3s_count = 0;
 
 idata uint16_t temp = 0;
 idata uint16_t temp_max = 0;
+idata uint16_t temp_limit = 30;
+
 idata uint32_t fre = 0;
 idata uint16_t fre_1s_count = 0;
 idata uint8_t humi = 0;
+idata uint8_t humi_max = 0;
 idata bit humi_useful_flag = 0;
 
 idata bit cap_flag = 0;
-idata uint8_t cap_count = 0;
 idata bit get_temp_flag = 0;
 idata bit get_humi_flag = 0;
+
+idata uint16_t key_2s_count = 0;
+idata bit key9_press = 0;
 
 idata uint8_t seg_slow = 0;
 idata uint8_t key_slow = 0;
@@ -66,24 +75,40 @@ void temp_task(void)
 	temp_slow = 1;
 	if(cap_flag)
 	{
-		if(!get_temp_flag)
-		{
-		  temp = readtemp();
-		  get_temp_flag = 1;
-		}
 		if(!get_humi_flag)
 		{
 		  if(fre >= 200 && fre <= 2000)
 			{
+				  cap_count++;
+				  time_cap[0] = time[0];
+				  time_cap[1] = time[1];
 			    humi_useful_flag = 1;
 					humi = 2 * fre / 45.0 + 10 / 9.0;
-				  uart_send_byte(humi);
+          if(humi > humi_max)
+					{
+					  humi_max = humi;
+					}
+					humi_aver = (humi_aver * (cap_count - 1) + humi * 10 ) / cap_count;
 					get_humi_flag = 1;
 			}
 			else
 			{
 			  humi_useful_flag = 0;
 			}
+		}
+		
+		if(!get_temp_flag)
+		{
+		  temp = readtemp();
+			if(humi_useful_flag)
+			{
+				if(temp > temp_max)
+				{
+					temp_max = temp;
+				}
+				temp_aver = (temp_aver * (cap_count - 1) + temp * 10 ) / cap_count; 
+			}
+		  get_temp_flag = 1;
 		}
 	  return;
 	}
@@ -121,14 +146,26 @@ void seg_task(void)
 	seg_slow = 1;
 	if(cap_flag)
 	{
-	 seg_show[0] = 13;
-	 seg_show[1] = 10;
-	 seg_show[2] = 10;
-	 seg_show[3] = temp / 10;
-	 seg_show[4] = temp % 10;
-	 seg_show[5] = 11;
-	 seg_show[6] = humi / 10;
-	 seg_show[7] = humi % 10; 
+		seg_point[6] = 0;
+		seg_show[0] = 13;
+	  seg_show[1] = 10;
+	  seg_show[2] = 10;
+		if(humi_useful_flag)
+		{
+		 seg_show[3] = temp / 10;
+		 seg_show[4] = temp % 10;
+		 seg_show[5] = 11;
+		 seg_show[6] = humi / 10;
+		 seg_show[7] = humi % 10;
+		}
+		else
+		{
+		 seg_show[3] = temp / 10;
+		 seg_show[4] = temp % 10;
+		 seg_show[5] = 11;
+		 seg_show[6] = 16;
+		 seg_show[7] = 16;
+		}
 	}
 	else
 	{
@@ -148,22 +185,93 @@ void seg_task(void)
 				switch(fd_mode)
 				{
 					case 0:
+						if(cap_count != 0)
+						{
+							seg_show[0] = 12;
+							seg_show[1] = 10;
+							seg_show[2] = temp_max / 10;
+							seg_show[3] = temp_max % 10;
+							seg_show[4] = 11;
+							seg_show[5] = temp_aver / 100;
+							seg_show[6] = (temp_aver / 10) % 10;
+							seg_point[6] = 1;
+							seg_show[7] = temp_aver % 10;
+						}
+						else
+						{
+						  seg_show[0] = 12;
+							seg_show[1] = 10;
+							seg_show[2] = 10;
+							seg_show[3] = 10;
+							seg_show[4] = 10;
+							seg_show[5] = 10;
+							seg_show[6] = 10;
+							seg_point[6] = 0;
+							seg_show[7] = 10;
+						}
 						break;
 					case 1:
+						seg_show[0] = 17;
+						seg_show[1] = 10;
+					  if(cap_count != 0)
+						{
+							seg_show[2] = humi_max / 10;
+							seg_show[3] = humi_max % 10;
+							seg_show[4] = 11;
+							seg_show[5] = humi_aver / 100;
+							seg_show[6] = (humi_aver / 10) % 10;
+							seg_point[6] = 1;
+							seg_show[7] = humi_aver % 10;
+						}
+						else
+						{
+						  seg_show[2] = 10;
+							seg_show[3] = 10;
+							seg_show[4] = 10;
+							seg_show[5] = 10;
+							seg_show[6] = 10;
+							seg_point[6] = 0;
+							seg_show[7] = 10;
+						}
+						
 						break;
 					case 2:
+						seg_show[0] = 14;
+						if(cap_count != 0)
+						{
+							seg_show[1] = cap_count / 10;
+							seg_show[2] = cap_count % 10;
+							seg_show[3] = time_cap[0]/10;
+							seg_show[4] = time_cap[0] % 10;
+							seg_show[5] = 11;
+							seg_show[6] = time_cap[1] /10;
+							seg_point[6] = 0;
+							seg_show[7] = time_cap[1] % 10;
+						}
+						else
+						{
+							seg_show[1] = cap_count / 10;
+							seg_show[2] = cap_count % 10;
+							seg_show[3] = 10;
+							seg_show[4] = 10;
+							seg_show[5] = 10;
+							seg_show[6] = 10;
+							seg_point[6] = 0;
+							seg_show[7] = 10;
+						}
 						break;
 				}
-				seg_show[0] = 12;
+        break;
+		 case 2:
+			  seg_show[0] = 15;
 				seg_show[1] = 10;
 				seg_show[2] = 10;
 				seg_show[3] = 10;
 				seg_show[4] = 10;
 				seg_show[5] = 10;
-				seg_show[6] = 10;
-				seg_show[7] = 10;
-				break;
-		 case 2:
+				seg_show[6] = temp_limit / 10;
+				seg_point[6] = 0;
+				seg_show[7] = temp_limit % 10;
 				break;
 		}
 	}
@@ -184,17 +292,47 @@ void key_task(void)
 	if((key_state & 0x44) == 0x40)keynum = 8;
 	if((key_state & 0x88) == 0x80)keynum = 9;
 
+	if((key_state & 0x88) == 0x88)key9_press = 1;
+  if(key_2s_count >= 2000)
+	{
+	  cap_count = 0;
+		temp = 0;
+		temp_max = 0;
+		temp_aver = 0;
+		humi = 0;
+		humi_max = 0;
+		humi_aver = 0;
+		time_cap[0] = 0;
+		time_cap[1] = 0;
+	}
   switch(keynum)
 	{
 	  case 4:
 			show_mode++;
 	    show_mode %= 3;
+			if(show_mode == 0)
+			{
+			  fd_mode ==  0;
+			}
 			break;
 		case 5:
+			if(show_mode == 1)
+			{
+			  fd_mode++;
+			  fd_mode %= 3;
+			}
 			break;
-		case 6:
+		case 8:
+			if(show_mode== 2)
+			{
+			  temp_limit++;
+			}
 			break;
-		case 7:
+		case 9:
+			if(show_mode == 2)
+			{
+			  temp_limit--;
+			}
 			break;
 	}
 }
@@ -254,6 +392,15 @@ void Timer1_Isr(void) interrupt 3
 		TL0 = 0;
 		TR0 = 1;
 		fre_1s_count = 0;
+	}
+	
+	if(key9_press)
+	{
+	  key_2s_count++;
+	}
+	else
+	{
+	  key_2s_count = 0;
 	}
 	if(seg_slow >= 90)seg_slow = 0;
 	if(seg_index >= 8)seg_index = 0;
