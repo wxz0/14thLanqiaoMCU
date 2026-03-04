@@ -1,4 +1,4 @@
-C51 COMPILER V9.54   MAIN                                                                  02/08/2026 14:31:58 PAGE 1   
+C51 COMPILER V9.54   MAIN                                                                  03/04/2026 11:50:28 PAGE 1   
 
 
 C51 COMPILER V9.54, COMPILATION OF MODULE MAIN
@@ -12,131 +12,302 @@ line level    source
    2          #include "seg.h"
    3          #include "led.h"
    4          #include "key.h"
-   5          
-   6          pdata uint8_t seg_show[] = {10,10,10,10,10,10,10,10};
-   7          pdata uint8_t seg_point[] = {0,0,0,0,0,0,0,0};
-   8          idata uint8_t seg_index = 0;
-   9          idata uint8_t show_mode = 0;
-  10          
-  11          idata uint8_t led_state[] ={0,0,0,0,0,0,0,0};
+   5          #include "ds1302.h"
+   6          #include "iic.h"
+   7          #include "onewire.h"
+   8          #include "uart.h"
+   9          pdata uint8_t seg_show[] = {10,10,10,10,10,10,10,10};
+  10          pdata uint8_t seg_point[] = {0,0,0,0,0,0,0,0};
+  11          idata uint8_t seg_index = 0;
   12          
-  13          idata uint8_t time[] = {13,3,5};
-  14          
-  15          idata uint8_t seg_slow = 0;
-  16          idata uint8_t key_slow = 0;
+  13          idata bit humi_mode = 0;
+  14          idata uint16_t humi_3s_count = 0;
+  15          idata uint8_t show_mode = 0;
+  16          idata uint8_t fd_mode = 0;
   17          
-  18          
+  18          idata uint8_t led_state[] ={0,0,0,0,0,0,0,0};
   19          
-  20          void seg_task(void)
-  21          {
-  22   1        if(seg_slow)return;
-  23   1        seg_slow = 1;
-  24   1        switch(show_mode)
-  25   1        {
-  26   2         case 0:
-  27   2            seg_show[0] = time[0] / 10;
-  28   2            seg_show[1] = time[0] % 10;
-  29   2            seg_show[2] = 11;
-  30   2            seg_show[3] = time[1] / 10;
-  31   2            seg_show[4] = time[1] % 10;
-  32   2            seg_show[5] = 11;
-  33   2            seg_show[6] = time[2] / 10;
-  34   2            seg_show[7] = time[2] % 10;
-  35   2            break;
-  36   2         case 1:
-  37   2            seg_show[0] = 12;
-  38   2            seg_show[1] = 10;
-  39   2            seg_show[2] = 10;
-  40   2            seg_show[3] = 10;
-  41   2            seg_show[4] = 10;
-  42   2            seg_show[5] = 10;
-  43   2            seg_show[6] = 10;
-  44   2            seg_show[7] = 10;
-  45   2            break;
-  46   2         case 2:
-  47   2            break;
-  48   2        }
-  49   1        
-  50   1      }
-  51          
-  52          void key_task(void)
-  53          {
-  54   1        static uint8_t key_state = 0;
-C51 COMPILER V9.54   MAIN                                                                  02/08/2026 14:31:58 PAGE 2   
+  20          idata uint8_t time[] = {13,3,5};
+  21          idata uint8_t time_cap[] = {0,0,0};
+  22          
+  23          idata uint16_t light = 0;
+  24          idata bit light_state_pre = 0;//0Ϊ����1Ϊ��
+  25          idata bit light_state_cur = 0;
+  26          idata uint16_t light_3s_count = 0;
+  27          
+  28          idata uint16_t temp = 0;
+  29          idata uint16_t temp_max = 0;
+  30          idata uint32_t fre = 0;
+  31          idata uint16_t fre_1s_count = 0;
+  32          idata uint8_t humi = 0;
+  33          idata bit humi_useful_flag = 0;
+  34          
+  35          idata bit cap_flag = 0;
+  36          idata bit get_temp_flag = 0;
+  37          idata bit get_humi_flag = 0;
+  38          
+  39          idata uint8_t seg_slow = 0;
+  40          idata uint8_t key_slow = 0;
+  41          idata uint8_t time_slow = 0;
+  42          idata uint8_t light_slow = 0;
+  43          idata uint8_t temp_slow = 0;
+  44          
+  45          void Uart1_Init(void) //9600bps@12.000MHz
+  46          {
+  47   1        SCON = 0x50;    //8位数据,可变波特率
+  48   1        AUXR |= 0x01;   //串口1选择定时器2为波特率发生器
+  49   1        AUXR |= 0x04;   //定时器时钟1T模式
+  50   1        T2L = 0xC7;     //设置定时初始值
+  51   1        T2H = 0xFE;     //设置定时初始值
+  52   1        AUXR |= 0x10;   //定时器2开始计时
+  53   1      }
+  54          
+C51 COMPILER V9.54   MAIN                                                                  03/04/2026 11:50:28 PAGE 2   
 
-  55   1        uint8_t keynum = 0;
-  56   1        if(key_slow)return;
-  57   1        key_slow = 1;
-  58   1        key_state = key_state << 4;
-  59   1        key_state |= key_getstate();
-  60   1        
-  61   1        if((key_state & 0x11) == 0x10)keynum = 4;
-  62   1        if((key_state & 0x22) == 0x20)keynum = 5;
-  63   1        if((key_state & 0x44) == 0x40)keynum = 8;
-  64   1        if((key_state & 0x88) == 0x80)keynum = 9;
-  65   1      
-  66   1        switch(keynum)
+  55          void time_task(void)
+  56          {
+  57   1        if(time_slow)return;
+  58   1        time_slow = 1;
+  59   1        readtime(time);
+  60   1      }
+  61          
+  62          void temp_task(void)
+  63          {
+  64   1        if(temp_slow)return;
+  65   1        temp_slow = 1;
+  66   1        if(cap_flag)
   67   1        {
-  68   2          case 4:
-  69   2            show_mode++;
-  70   2            show_mode %= 3;
-  71   2            break;
-  72   2          case 5:
-  73   2            break;
-  74   2          case 6:
-  75   2            break;
-  76   2          case 7:
-  77   2            break;
-  78   2        }
-  79   1      }
-  80          
-  81          
-  82          void Timer1_Init(void)    //1����@12.000MHz
-  83          {
-  84   1        AUXR |= 0x40;     //��ʱ��ʱ��1Tģʽ
-  85   1        TMOD &= 0x0F;     //���ö�ʱ��ģʽ
-  86   1        TL1 = 0x20;       //���ö�ʱ��ʼֵ
-  87   1        TH1 = 0xD1;       //���ö�ʱ��ʼֵ
-  88   1        TF1 = 0;        //���TF1��־
-  89   1        TR1 = 1;        //��ʱ��1��ʼ��ʱ
-  90   1        ET1 = 1;        //ʹ�ܶ�ʱ��1�ж�
-  91   1        EA = 1;
-  92   1      }
-  93          
-  94          void Timer1_Isr(void) interrupt 3
-  95          {
-  96   1        seg_slow++;
-  97   1        seg_index++;
-  98   1        key_slow++;
-  99   1        
- 100   1        if(seg_slow >= 90)seg_slow = 0;
- 101   1        if(seg_index >= 8)seg_index = 0;
- 102   1        if(key_slow >= 20)key_slow = 0;
- 103   1        
- 104   1        seg_proc(seg_index,seg_show[seg_index],seg_point[seg_index]);
- 105   1      }
- 106          
- 107          void main(void)
- 108          {
- 109   1        Timer1_Init();
- 110   1        while(1)
+  68   2          if(!get_temp_flag)
+  69   2          {
+  70   3            temp = readtemp();
+  71   3            get_temp_flag = 1;
+  72   3          }
+  73   2          if(!get_humi_flag)
+  74   2          {
+  75   3            if(fre >= 200 && fre <= 2000)
+  76   3            {
+  77   4                humi_useful_flag = 1;
+  78   4                humi = 2 * fre / 45.0 + 10 / 9.0;
+  79   4                uart_send_byte(humi);
+  80   4                get_humi_flag = 1;
+  81   4            }
+  82   3            else
+  83   3            {
+  84   4              humi_useful_flag = 0;
+  85   4            }
+  86   3          }
+  87   2          return;
+  88   2        }
+  89   1      }
+  90          
+  91          void light_task(void)
+  92          {
+  93   1        if(light_slow)return;
+  94   1        light_slow = 1;
+  95   1        if(cap_flag)return;
+  96   1        
+  97   1        light = readlight();
+  98   1        
+  99   1        light = light * 100 / 51.0;
+ 100   1        
+ 101   1        light_state_pre = light_state_cur;
+ 102   1        if(light >= 200)
+ 103   1        {
+ 104   2          light_state_cur = 0;//亮
+ 105   2        }
+ 106   1        else
+ 107   1        {
+ 108   2          light_state_cur = 1;//暗
+ 109   2        }
+ 110   1        if(light_state_cur == 1 && light_state_pre == 0)
  111   1        {
- 112   2          seg_task();
- 113   2          key_task();
- 114   2        }
- 115   1      }
+ 112   2          cap_flag = 1;
+ 113   2        }
+ 114   1      }
+ 115          
+ 116          
+C51 COMPILER V9.54   MAIN                                                                  03/04/2026 11:50:28 PAGE 3   
 
-C51 COMPILER V9.54   MAIN                                                                  02/08/2026 14:31:58 PAGE 3   
+ 117          void seg_task(void)
+ 118          {
+ 119   1        if(seg_slow)return;
+ 120   1        seg_slow = 1;
+ 121   1        if(cap_flag)
+ 122   1        {
+ 123   2         seg_show[0] = 13;
+ 124   2         seg_show[1] = 10;
+ 125   2         seg_show[2] = 10;
+ 126   2         seg_show[3] = temp / 10;
+ 127   2         seg_show[4] = temp % 10;
+ 128   2         seg_show[5] = 11;
+ 129   2         seg_show[6] = humi / 10;
+ 130   2         seg_show[7] = humi % 10; 
+ 131   2        }
+ 132   1        else
+ 133   1        {
+ 134   2          switch(show_mode)
+ 135   2          {
+ 136   3           case 0:
+ 137   3              seg_show[0] = time[0] / 10;
+ 138   3              seg_show[1] = time[0] % 10;
+ 139   3              seg_show[2] = 11;
+ 140   3              seg_show[3] = time[1] / 10;
+ 141   3              seg_show[4] = time[1] % 10;
+ 142   3              seg_show[5] = 11;
+ 143   3              seg_show[6] = time[2] / 10;
+ 144   3              seg_show[7] = time[2] % 10;
+ 145   3              break;
+ 146   3           case 1:
+ 147   3              switch(fd_mode)
+ 148   3              {
+ 149   4                case 0:
+ 150   4                  break;
+ 151   4                case 1:
+ 152   4                  break;
+ 153   4                case 2:
+ 154   4                  break;
+ 155   4              }
+ 156   3              seg_show[0] = 12;
+ 157   3              seg_show[1] = 10;
+ 158   3              seg_show[2] = 10;
+ 159   3              seg_show[3] = 10;
+ 160   3              seg_show[4] = 10;
+ 161   3              seg_show[5] = 10;
+ 162   3              seg_show[6] = 10;
+ 163   3              seg_show[7] = 10;
+ 164   3              break;
+ 165   3           case 2:
+ 166   3              break;
+ 167   3          }
+ 168   2        }
+ 169   1        
+ 170   1      }
+ 171          
+ 172          void key_task(void)
+ 173          {
+ 174   1        static uint8_t key_state = 0;
+ 175   1        uint8_t keynum = 0;
+ 176   1        if(key_slow)return;
+ 177   1        key_slow = 1;
+ 178   1        key_state = key_state << 4;
+C51 COMPILER V9.54   MAIN                                                                  03/04/2026 11:50:28 PAGE 4   
+
+ 179   1        key_state |= key_getstate();
+ 180   1        
+ 181   1        if((key_state & 0x11) == 0x10)keynum = 4;
+ 182   1        if((key_state & 0x22) == 0x20)keynum = 5;
+ 183   1        if((key_state & 0x44) == 0x40)keynum = 8;
+ 184   1        if((key_state & 0x88) == 0x80)keynum = 9;
+ 185   1      
+ 186   1        switch(keynum)
+ 187   1        {
+ 188   2          case 4:
+ 189   2            show_mode++;
+ 190   2            show_mode %= 3;
+ 191   2            break;
+ 192   2          case 5:
+ 193   2            break;
+ 194   2          case 6:
+ 195   2            break;
+ 196   2          case 7:
+ 197   2            break;
+ 198   2        }
+ 199   1      }
+ 200          void Timer0_Init(void)    //1����@12.000MHz
+ 201          {
+ 202   1        AUXR |= 0x80;     //��ʱ��ʱ��1Tģʽ
+ 203   1        TMOD &= 0xF0;
+ 204   1        TMOD |= 0x04;   //���ö�ʱ��ģʽ
+ 205   1        TL0 = 0x00;       //���ö�ʱ��ʼֵ
+ 206   1        TH0 = 0x00;       //���ö�ʱ��ʼֵ
+ 207   1        TF0 = 0;        //���TF0��־
+ 208   1        TR0 = 1;        //��ʱ��0��ʼ��ʱ
+ 209   1      }
+ 210          
+ 211          
+ 212          void Timer1_Init(void)    //1����@12.000MHz
+ 213          {
+ 214   1        AUXR |= 0x40;     //��ʱ��ʱ��1Tģʽ
+ 215   1        TMOD &= 0x0F;     //���ö�ʱ��ģʽ
+ 216   1        TL1 = 0x20;       //���ö�ʱ��ʼֵ
+ 217   1        TH1 = 0xD1;       //���ö�ʱ��ʼֵ
+ 218   1        TF1 = 0;        //���TF1��־
+ 219   1        TR1 = 1;        //��ʱ��1��ʼ��ʱ
+ 220   1        ET1 = 1;        //ʹ�ܶ�ʱ��1�ж�
+ 221   1        EA = 1;
+ 222   1      }
+ 223          
+ 224          void Timer1_Isr(void) interrupt 3
+ 225          {
+ 226   1        seg_slow++;
+ 227   1        seg_index++;
+ 228   1        key_slow++;
+ 229   1        time_slow++;
+ 230   1        temp_slow++;
+ 231   1        light_slow++;
+ 232   1        
+ 233   1        if(cap_flag)
+ 234   1        {
+ 235   2          light_3s_count++;
+ 236   2          if(light_3s_count >= 3000)
+ 237   2          {
+ 238   3            cap_flag = 0;
+ 239   3            get_humi_flag = 0;
+ 240   3            get_temp_flag = 0;
+C51 COMPILER V9.54   MAIN                                                                  03/04/2026 11:50:28 PAGE 5   
+
+ 241   3            humi_useful_flag = 0;
+ 242   3            light_3s_count = 0;
+ 243   3          }
+ 244   2        }
+ 245   1        
+ 246   1        fre_1s_count++;
+ 247   1        if(fre_1s_count++ >= 1000)
+ 248   1        {
+ 249   2          TR0 = 0;
+ 250   2          fre = (TH0 << 8) | TL0;
+ 251   2      
+ 252   2          TH0 = 0;
+ 253   2          TL0 = 0;
+ 254   2          TR0 = 1;
+ 255   2          fre_1s_count = 0;
+ 256   2        }
+ 257   1        if(seg_slow >= 90)seg_slow = 0;
+ 258   1        if(seg_index >= 8)seg_index = 0;
+ 259   1        if(key_slow >= 20)key_slow = 0;
+ 260   1        if(time_slow >= 160)time_slow = 0;
+ 261   1        if(temp_slow >= 160)temp_slow = 0;
+ 262   1        if(light_slow >= 100)light_slow=0;
+ 263   1        
+ 264   1        seg_proc(seg_index,seg_show[seg_index],seg_point[seg_index]);
+ 265   1      }
+ 266          
+ 267          void main(void)
+ 268          {
+ 269   1        Timer1_Init();
+ 270   1        Timer0_Init();
+ 271   1        Uart1_Init();
+ 272   1        writetime(time);
+ 273   1        readtemp();
+ 274   1        while(1)
+ 275   1        {
+ 276   2          time_task();
+ 277   2          seg_task();
+ 278   2          key_task();
+ 279   2          light_task();
+ 280   2          temp_task();
+ 281   2        }
+ 282   1      }
 
 
 MODULE INFORMATION:   STATIC OVERLAYABLE
-   CODE SIZE        =    340    ----
+   CODE SIZE        =    811    ----
    CONSTANT SIZE    =   ----    ----
    XDATA SIZE       =   ----    ----
    PDATA SIZE       =     16    ----
    DATA SIZE        =      1       1
-   IDATA SIZE       =     15    ----
-   BIT SIZE         =   ----    ----
+   IDATA SIZE       =     37    ----
+   BIT SIZE         =      7    ----
 END OF MODULE INFORMATION.
 
 

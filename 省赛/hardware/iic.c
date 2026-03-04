@@ -114,7 +114,7 @@ uint8_t readlight(void)
   I2CStart();
 	I2CSendByte(0x90);
 	I2CWaitAck();
-	I2CSendByte(0x10);
+	I2CSendByte(0x01);
 	I2CWaitAck();
 	
 	I2CStart();
@@ -125,4 +125,5 @@ uint8_t readlight(void)
 	temp = I2CReceiveByte();
 	I2CSendAck(1);
 	I2CStop();
+	return temp;
 }

@@ -6,6 +6,7 @@
 ".\Objects\key.obj",
 ".\Objects\ds1302.obj",
 ".\Objects\iic.obj",
-".\Objects\onewire.obj" 
+".\Objects\onewire.obj",
+".\Objects\uart.obj" 
 TO ".\Objects\project" 
 PRINT(".\Listings\project.m51") RAMSIZE(256) 

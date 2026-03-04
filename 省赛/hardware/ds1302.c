@@ -56,13 +56,24 @@ unsigned char Read_Ds1302_Byte ( unsigned char address )
 	return (temp);			
 }
 
+void writetime(uint8_t time[])
+{
+  Write_Ds1302_Byte(0x8e,0x00);
+	
+	Write_Ds1302_Byte(0x84,(time[0] / 10 * 16) + (time[0] % 10));
+	Write_Ds1302_Byte(0x82,(time[1] / 10 * 16) + (time[0] % 10));
+	Write_Ds1302_Byte(0x80,(time[2] / 10 * 16) + (time[0] % 10));
+	
+	Write_Ds1302_Byte(0x8e,0x80);
+}
+
 void readtime(uint8_t time[])
 {
 	uint8_t temp = 0;
   temp = Read_Ds1302_Byte(0x85);
-  time[0] = temp / 16 * 10 + temp % 16;
+  time[0] = (temp / 16 * 10) + (temp % 16);
   temp = Read_Ds1302_Byte(0x83);
-  time[1] = temp / 16 * 10 + temp % 16;
+  time[1] = (temp / 16 * 10) + (temp % 16);
 	temp = Read_Ds1302_Byte(0x81);
-  time[2] = temp / 16 * 10 + temp % 16;
+  time[2] = (temp / 16 * 10) + (temp % 16);
 }

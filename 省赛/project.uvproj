@@ -449,6 +449,16 @@
               <FileType>5</FileType>
               <FilePath>.\hardware\ds1302.h</FilePath>
             </File>
+            <File>
+              <FileName>uart.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\hardware\uart.c</FilePath>
+            </File>
+            <File>
+              <FileName>uart.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\hardware\uart.h</FilePath>
+            </File>
           </Files>
         </Group>
       </Groups>
