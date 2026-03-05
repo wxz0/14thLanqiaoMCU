@@ -1,4 +1,4 @@
-C51 COMPILER V9.54   LED                                                                   02/08/2026 14:27:45 PAGE 1   
+C51 COMPILER V9.54   LED                                                                   03/05/2026 16:32:06 PAGE 1   
 
 
 C51 COMPILER V9.54, COMPILATION OF MODULE LED
@@ -27,17 +27,17 @@ line level    source
   17   2         P0 = ~temp;
   18   2         hc138_select(4);
   19   2         hc138_select(0);
-  20   2         temp = state_old;
+  20   2         state_old = temp;
   21   2       }
   22   1      }
 
 
 MODULE INFORMATION:   STATIC OVERLAYABLE
-   CODE SIZE        =     59    ----
+   CODE SIZE        =     65    ----
    CONSTANT SIZE    =   ----    ----
    XDATA SIZE       =   ----    ----
    PDATA SIZE       =   ----    ----
-   DATA SIZE        =      1       3
+   DATA SIZE        =      1       4
    IDATA SIZE       =   ----    ----
    BIT SIZE         =   ----    ----
 END OF MODULE INFORMATION.

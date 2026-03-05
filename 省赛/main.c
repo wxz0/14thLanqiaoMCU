@@ -17,6 +17,8 @@ idata uint8_t show_mode = 0;
 idata uint8_t fd_mode = 0;
 
 idata uint8_t led_state[] ={0,0,0,0,0,0,0,0};
+idata bit led4_flash = 0;
+idata uint8_t led_100ms_count = 0;
 
 idata uint8_t time[] = {13,3,5};
 idata uint8_t time_cap[] = {0,0,0};
@@ -30,18 +32,23 @@ idata bit light_state_cur = 0;
 idata uint16_t light_3s_count = 0;
 
 idata uint16_t temp = 0;
+idata uint16_t temp_old = 0;
 idata uint16_t temp_max = 0;
 idata uint16_t temp_limit = 30;
+idata bit higher_temp_flag = 0;
 
 idata uint32_t fre = 0;
 idata uint16_t fre_1s_count = 0;
 idata uint8_t humi = 0;
+idata uint8_t humi_old = 0;
 idata uint8_t humi_max = 0;
 idata bit humi_useful_flag = 0;
 
 idata bit cap_flag = 0;
 idata bit get_temp_flag = 0;
 idata bit get_humi_flag = 0;
+idata bit higher_data_flag = 0;
+idata bit humi_useful_led_flag = 1;
 
 idata uint16_t key_2s_count = 0;
 idata bit key9_press = 0;
@@ -83,6 +90,8 @@ void temp_task(void)
 				  time_cap[0] = time[0];
 				  time_cap[1] = time[1];
 			    humi_useful_flag = 1;
+				  humi_useful_led_flag = 1;
+				  humi_old = humi;
 					humi = 2 * fre / 45.0 + 10 / 9.0;
           if(humi > humi_max)
 					{
@@ -94,11 +103,13 @@ void temp_task(void)
 			else
 			{
 			  humi_useful_flag = 0;
+				humi_useful_led_flag = 0;
 			}
 		}
 		
 		if(!get_temp_flag)
 		{
+			temp_old = temp;
 		  temp = readtemp();
 			if(humi_useful_flag)
 			{
@@ -106,10 +117,20 @@ void temp_task(void)
 				{
 					temp_max = temp;
 				}
+				if(humi > humi_old && temp > temp_old)
+				{
+				  higher_data_flag = 1;
+				}
+				else
+				{
+				  higher_data_flag = 0;
+				}
 				temp_aver = (temp_aver * (cap_count - 1) + temp * 10 ) / cap_count; 
 			}
 		  get_temp_flag = 1;
 		}
+		
+		
 	  return;
 	}
 }
@@ -136,6 +157,75 @@ void light_task(void)
 	if(light_state_cur == 1 && light_state_pre == 0)
 	{
 	  cap_flag = 1;
+	}
+}
+
+void led_task(void)
+{
+  if(!cap_flag)
+	{
+	  if(show_mode == 0)
+		{
+			led_state[0] = 1;
+			led_state[1] = 0;
+			led_state[2] = 0;
+		}
+		else if(show_mode == 1)
+		{
+			led_state[0] = 0;
+			led_state[1] = 1;
+			led_state[2] = 0;
+		}
+		else if(show_mode == 2)
+		{
+		  led_state[0] = 0;
+			led_state[1] = 0;
+			led_state[2] = 0;
+		}
+	}
+	else
+	{
+	  led_state[0] = 0;
+		led_state[1] = 0;
+		led_state[2] = 1;
+	}
+	
+	if(temp > temp_limit)
+	{
+		higher_temp_flag = 1;
+	}
+	else
+	{
+		higher_temp_flag = 0;
+	}
+	if(higher_temp_flag)
+	{
+	  led_state[3] = led4_flash;
+	}
+	else
+	{
+	  led_state[3] = 0;
+	}
+	
+	if(humi_useful_led_flag)
+	{
+	  led_state[4] = 0;
+	}
+	else
+	{
+	  led_state[4] = 1;
+	}
+	
+	if(cap_count >= 2)
+	{
+	  if(higher_data_flag)
+		{
+			led_state[5] = 1;
+		}
+		else
+		{
+		  led_state[5] = 0;
+		}
 	}
 }
 
@@ -292,27 +382,39 @@ void key_task(void)
 	if((key_state & 0x44) == 0x40)keynum = 8;
 	if((key_state & 0x88) == 0x80)keynum = 9;
 
-	if((key_state & 0x88) == 0x88)key9_press = 1;
+	if((key_state & 0x88) == 0x88)
+	{
+	  key9_press = 1;
+	}
+	else
+	{
+		key9_press = 0;
+	}
   if(key_2s_count >= 2000)
 	{
-	  cap_count = 0;
-		temp = 0;
-		temp_max = 0;
-		temp_aver = 0;
-		humi = 0;
-		humi_max = 0;
-		humi_aver = 0;
-		time_cap[0] = 0;
-		time_cap[1] = 0;
+	  if(show_mode == 1 && fd_mode ==2)
+		{
+			cap_count = 0;
+			temp = 0;
+			temp_old = 0;
+			temp_max = 0;
+			temp_aver = 0;
+			humi = 0;
+			humi_old = 0;
+			humi_max = 0;
+			humi_aver = 0;
+			time_cap[0] = 0;
+			time_cap[1] = 0;
+		}
 	}
   switch(keynum)
 	{
 	  case 4:
 			show_mode++;
 	    show_mode %= 3;
-			if(show_mode == 0)
+			if(show_mode == 2)
 			{
-			  fd_mode ==  0;
+			  fd_mode = 0;
 			}
 			break;
 		case 5:
@@ -402,6 +504,20 @@ void Timer1_Isr(void) interrupt 3
 	{
 	  key_2s_count = 0;
 	}
+	
+	if(higher_temp_flag)
+	{
+	  led_100ms_count++;
+	}
+	else
+	{
+	  led_100ms_count = 0;
+	}
+	if(led_100ms_count> 100)
+	{
+		led4_flash = !led4_flash;
+	  led_100ms_count = 0;
+	}
 	if(seg_slow >= 90)seg_slow = 0;
 	if(seg_index >= 8)seg_index = 0;
 	if(key_slow >= 20)key_slow = 0;
@@ -410,6 +526,7 @@ void Timer1_Isr(void) interrupt 3
 	if(light_slow >= 100)light_slow=0;
 	
 	seg_proc(seg_index,seg_show[seg_index],seg_point[seg_index]);
+	led_proc(led_state);
 }
 
 void main(void)
@@ -426,5 +543,6 @@ void main(void)
 	  key_task();
 		light_task();
 		temp_task();
+		led_task();
 	}
 }

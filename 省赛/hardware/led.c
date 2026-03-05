@@ -17,6 +17,6 @@ void led_proc(uint8_t state[])
 	 P0 = ~temp;
 	 hc138_select(4);
 	 hc138_select(0);
-   temp = state_old;
+   state_old = temp;
  }
 }
